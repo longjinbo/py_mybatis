@@ -23,7 +23,11 @@ class PyMapper(object):
         for sub_statement_node in mapper_xml_tree:
             if sub_statement_node.tag in sql_id_type_list:
                 sql_id = sub_statement_node.attrib.get('id')
-                self.mapper[sql_id] = sub_statement_node
+                if sub_statement_node.attrib.get('databaseId')!=None:
+                    dbid = sub_statement_node.attrib.get('databaseId')
+                    self.mapper[dbid+sql_id] = sub_statement_node
+                else:
+                    self.mapper[sql_id] = sub_statement_node
 
     def list_statement(self):
         return self.mapper.keys()
@@ -107,9 +111,17 @@ def convert_parameters(child, text=False, tail=False, **kwargs):
         else:
             # 类型转换
             param_value = __get_param(mybatis_param.param_name, **kwargs)
+            print(mybatis_param.param_name+ ' value:'+str(param_value))
             convert_value = PY_MYBATIS_TYPE_HANDLER.convert(mybatis_param.python_type, mybatis_param.sql_type,
                                                             param_value,
                                                             PyMybatisTypeHandler.PYTHON2SQL_TYPE_HANDLER_CONVERT_MODE)
+        #longjb modify 2021.10.29:
+        if convert_value!='null' and len(convert_value)>1 and( mybatis_param.sql_type=='raw' or mybatis_param.python_type=='raw'):
+            convert_value= convert_value[1:len(convert_value)-1]
+#        print('name:'+str(mybatis_param.name))
+#        print('value:'+convert_value)
+#        print('sql_type:'+str(mybatis_param.sql_type))
+#        print('python_type:'+str(mybatis_param.python_type))
         convert_string = convert_string.replace(mybatis_param.full_name, convert_value, 1)
     # convert CDATA string
     convert_cdata(convert_string)
@@ -121,7 +133,13 @@ def convert_include(mybatis_mapper, child, **kwargs):
     properties = kwargs.get('properties') if kwargs.get('properties') else dict()
     for next_child in child:
         if next_child.tag == 'property':
-            properties[next_child.attrib.get('name')] = next_child.attrib.get('value')
+            if re.match('\\$\{.+?\}', next_child.attrib.get('value')):
+                print(next_child.attrib.get('value'))
+                prov=__get_param(next_child.attrib.get('value').replace('${', '').replace('}', ''), **kwargs)
+                print(prov)
+                properties[next_child.attrib.get('name')] = prov
+            else:
+                properties[next_child.attrib.get('name')] = next_child.attrib.get('value')
     convert_string = ''
     include_child_id = child.attrib.get('refid')
     for change in ['#', '$']:
@@ -170,13 +188,23 @@ def convert_choose_when_otherwise(mybatis_mapper, child, **kwargs):
             else:
                 test = next_child.attrib.get('test')
                 if __calc_condition(test, **kwargs):
+                    
                     when_test_result = True
+                if 'value'in kwargs['params']:
+                    print("result： "+str(kwargs['params']['value']) )
+                
+                print(test+" "+str(when_test_result) )
                 if when_test_result:
                     convert_string += convert_parameters(next_child, text=True, tail=True, **kwargs)
+                    #print("convert_parameters:"+convert_string)
                     convert_string = __add_sql_strip_comments(convert_string, '-- if(' + test + ')', **kwargs)
+                    #print("__add_sql_strip_comments:"+convert_string)
                     convert_string += convert_children(mybatis_mapper, next_child, **kwargs)
+                    #print("adding:"+convert_string)
                     for sub_child in next_child:
                         convert_string += convert_children(mybatis_mapper, sub_child, **kwargs)
+                        #print("adding sub:"+convert_string)
+                    break
                 when_element_cnt += 1
                 kwargs['when_element_cnt'] = when_element_cnt
         elif next_child.tag == 'otherwise' and not when_test_result:
@@ -230,7 +258,6 @@ def convert_trim_where_set(mybatis_mapper, child, **kwargs):
     convert_string += convert_parameters(child, tail=True, **kwargs)
     return convert_string
 
-
 def convert_foreach(mybatis_mapper, child, **kwargs):
     collection = child.attrib.get('collection')
     collection_value = __get_param(collection, **kwargs)
@@ -244,13 +271,39 @@ def convert_foreach(mybatis_mapper, child, **kwargs):
     convert_string = ''
     # for each items
     convert_string += open
-    last = len(collection_value) - 1
+    if isinstance(collection_value,dict):
+        collection_value = collection_value.items()#keys items
+    else:
+        collection_value= enumerate(collection_value)
+    #last = len(collection_value) - 1
     mybatis_param_list = get_params(child)
     for_each_text = child.text
-    for index, item_value in enumerate(collection_value):
-        convert_string += __calc_foreach_value(for_each_text, mybatis_param_list, item, item_value)
-        if index != last:
-            convert_string += separator
+    haveOne=False
+    
+    for item_key, item_value in collection_value:
+        #print("-1 start= for==="+str(item_key)+"="+str(item_value)+"===1")
+        #print("-1 "+str(type(item_value))+"===1")
+        if len(child)>0:
+            temp_text=""
+            for next_child in child:
+                kwargs['params'][item] = item_value
+                kwargs['params']['item_value'] = item_value
+                kwargs['params']['item_key'] = item_key
+                kwargs['params'][index] = item_key
+                #print("-1 "+item+",,"+str(kwargs['params'][item])+str(type(kwargs['params'][item]))+"===1")
+                #print("0 start===="+next_child.tag+"===1")
+                child_text = convert_children(mybatis_mapper, next_child, **kwargs)
+                #print("1===="+child_text+"===1")
+                temp_text = __calc_foreach_value(child_text, mybatis_param_list, item,item_value,index,item_key)
+                #print("2===="+temp_text+"===2")
+            convert_string += temp_text
+        else:
+            convert_string += __calc_foreach_value(for_each_text, mybatis_param_list, item,item_value,index,item_key)
+        haveOne=True
+        #if index != last:
+        convert_string += separator
+    if haveOne:
+        convert_string = convert_string[::-1].replace(separator[::-1],'', 1)[::-1]
     convert_string += close
     return convert_string
 
@@ -286,13 +339,23 @@ def __calc_condition(condition: str, **kwargs):
 
 
 # 计算foreach 标签值
-def __calc_foreach_value(for_each_text: str, mybatis_param_list, item, item_value):
+def __calc_foreach_value(for_each_text: str, mybatis_param_list, item, item_value,index,item_key):
     for param in mybatis_param_list:
         sql_param = param.sql_param
         if not sql_param.is_function:
             value_expression = sql_param.param_name.replace(item, 'item_value', 1)
+            if index!=None:
+                value_expression = value_expression.replace(index, 'item_key', 1)
+            #print(value_expression+item+item_value+index,item_key)
             calc_value = eval(value_expression, locals())
-            for_each_text = for_each_text.replace(param.full_name, param_str(calc_value), 1)
+            #dennis modify 2021.10.29
+            calc_value = param_str(calc_value)
+            if calc_value!='null' and len(calc_value)>1 and( param.sql_type=='raw' or param.python_type=='raw'):
+                calc_value= calc_value[1:len(calc_value)-1]
+                print(param.python_type+" :"+ calc_value)
+            for_each_text = for_each_text.replace(param.full_name,calc_value, 1)
+            
+            
         else:
             function_expression = sql_param.function_expression
             # 查找函数
@@ -300,6 +363,8 @@ def __calc_foreach_value(for_each_text: str, mybatis_param_list, item, item_valu
             # 替换表达式
             function_expression = sql_param.function_expression.replace(sql_param.function_name, 'fun', 1)
             function_expression = function_expression.replace(item, 'item_value', 1)
+            if index!=None:
+                function_expression = function_expression.replace(index, 'item_key', 1)
             # 执行函数
             calc_value = eval(function_expression, locals())
             for_each_text = for_each_text.replace(param.full_name, param_str(calc_value), 1)
@@ -318,8 +383,12 @@ def __eval_function(mybatis_param: PyMybatisParam, **kwargs):
 # 获取参数
 def __get_param(param_key: str, **kwargs):
     params = kwargs['params'] if 'params' in kwargs else {}
+    #print(str(param_key)+" finding")
+    #print(str(kwargs['params']))
     if param_key in params:
+        #print(str(param_key)+":"+str(type(params[param_key])))
         return params[param_key]
+    print(str(param_key)+" not found")
     return None
 
 

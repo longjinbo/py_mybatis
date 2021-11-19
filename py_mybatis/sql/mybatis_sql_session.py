@@ -12,6 +12,7 @@ class MybatisMapperScanner(object):
     def mapper_xml_scan(self, mapper_xml_dir: str):
         mybatis_mapper_dict = MybatisMapperDict()
         for mapper_xml_path in self.__list_mapper(mapper_xml_dir, 'xml'):
+            LOG.debug("xml path {} ".format(mapper_xml_path))
             mybatis_mapper_dict.register_mapper(PyMapper(xml_path=mapper_xml_path))
         return mybatis_mapper_dict
 
@@ -37,7 +38,7 @@ class MybatisMapperDict(object):
         self.mapper_dict[mapper.namespace] = mapper
 
     """
-    proxy statement 
+    proxy statement
     this sql_id cloud with namespace
     """
 
@@ -97,6 +98,9 @@ class MybatisSqlSession(object):
 
     def insert(self, sql_id: str, **kwargs):
         return self.sql_template.insert(sql=self.mapper_dict.statement(sql_id, **kwargs), con=self.__con())
+
+    def insert_batch(self, sql_id: str, **kwargs):
+        return self.sql_template.insert_batch(sql=self.mapper_dict.statement(sql_id, **kwargs), con=self.__con())
 
     def delete(self, sql_id: str, **kwargs):
         return self.sql_template.delete(sql=self.mapper_dict.statement(sql_id, **kwargs), con=self.__con())

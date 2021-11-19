@@ -19,7 +19,6 @@ class SqlParamRegex(object):
     def __init__(self, regex: str, prefix: str):
         self.regex = re.compile(regex)
         self.prefix = prefix
-
     def resolve_param(self, param: str):
         param = param.replace(self.prefix + '{', '').replace('}', '')
         if param_function_regex.match(param):
@@ -98,6 +97,9 @@ def get_params(child):
                                                               'python_type')
                 mybatis_param.type_handler = __get_regex_value('(\s*type_handler\s*=\s*)(?P<type_handler>\w+)?', param,
                                                                'type_handler')
+                #print('name:'+str(mybatis_param.name))
+                #print('sql_type:'+str(mybatis_param.sql_type))
+                #print('python_type:'+str(mybatis_param.python_type))
             param_list.append(mybatis_param)
 
     return param_list

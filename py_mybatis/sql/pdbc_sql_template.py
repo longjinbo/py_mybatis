@@ -1,6 +1,6 @@
 import contextlib
-from DBUtils.PooledDB import PooledDB
-
+#from DBUtils.PooledDB import PooledDB
+from dbutils.pooled_db import PooledDB
 from py_mybatis.logger import LOG
 
 
@@ -27,10 +27,10 @@ class PdbcSqlTemplate(object):
         self.dataSource = dataSource
 
     """
-    
-    when con is not None 
+
+    when con is not None
     must be commit manually by the calling function
-    
+
     """
 
     def update(self, sql: str, con=None, args=None):
@@ -38,7 +38,9 @@ class PdbcSqlTemplate(object):
         with self.get_connection(con) as connection:
             cursor = connection.cursor()
             LOG.debug('execute sql {},args {}', sql, args)
-            data = cursor.execute(sql, args)
+            data = {}
+            data['columnNum'] = cursor.execute(sql, args)
+            data['columnId'] = cursor.lastrowid
             if auto_commit:
                 connection.commit()
                 cursor.close()
