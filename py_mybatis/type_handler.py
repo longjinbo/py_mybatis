@@ -57,7 +57,10 @@ class PyMybatisTypeHandler(object):
             type_handler = self.__find_type_handler(type_from, type_to, convert_mode)
             if type_handler:
                 type_value = type_handler.convert(convert_mode, type_value)
-        return param_str(type_value)
+        if type_to in ['TINYINT', 'SMALLINT', 'INTEGER', 'BIGINT', 'BIT', 'DECIMAL', 'DOUBLE', 'FLOAT', 'NUMERIC']:
+            return str(type_value)
+        else:
+            return param_str(type_value)
 
     def __find_type_handler(self, type_from: str, type_to: str, convert_mode: int):
         for type_handler in self.type_handler_support_list:

@@ -112,7 +112,7 @@ class MybatisSqlSession(object):
                     **kwargs):
         return self.sql_template.select_page(sql=self.mapper_dict.statement(sql_id, **kwargs),
                                              row_bound=row_bound,
-                                             count_sql=count_sql, con=self.__con())
+                                             count_sql=self.mapper_dict.statement(count_sql, **kwargs), con=self.__con())
 
     def execute_in_connection(self, fun):
         return self.sql_template.execute_in_connection(fun)

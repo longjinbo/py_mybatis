@@ -1,6 +1,6 @@
 import contextlib
-#from DBUtils.PooledDB import PooledDB
-from dbutils.pooled_db import PooledDB
+from DBUtils.PooledDB import PooledDB
+#from dbutils.pooled_db import PooledDB
 from py_mybatis.logger import LOG
 
 
@@ -90,13 +90,13 @@ class PdbcSqlTemplate(object):
             page_result.pageNum = row_bound.pageNum
             page_result.pageSize = row_bound.pageSize
             if count_sql is None:
+                LOG.debug('execute count_sql {},args {}'.format(count_sql, args))
                 count_sql = count_query(sql)
-                LOG.debug('execute sql {},args {}'.format(count_sql, args))
                 cursor.execute(count_sql, args)
                 page_result.total = cursor.fetchone()['count(*)']
             else:
+                LOG.debug('execute count_sql {},args {}'.format(count_sql, args))
                 cursor.execute(count_sql, args)
-                LOG.debug('execute sql {},args {}'.format(count_sql, args))
                 page_result.total = get_one_value(cursor.fetchone())
             sql = limit_query(sql, row_bound)
             LOG.debug('execute sql {},args {}'.format(sql, args))

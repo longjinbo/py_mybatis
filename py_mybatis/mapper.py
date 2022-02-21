@@ -116,8 +116,9 @@ def convert_parameters(child, text=False, tail=False, **kwargs):
                                                             param_value,
                                                             PyMybatisTypeHandler.PYTHON2SQL_TYPE_HANDLER_CONVERT_MODE)
         #longjb modify 2021.10.29:
-        if convert_value!='null' and len(convert_value)>1 and( mybatis_param.sql_type=='raw' or mybatis_param.python_type=='raw'):
-            convert_value= convert_value[1:len(convert_value)-1]
+        if convert_value!='null' and len(convert_value)>0 and( mybatis_param.sql_type=='raw' or mybatis_param.python_type=='raw'):
+            convert_value= convert_value.replace("'","`")
+            #convert_value= convert_value[1:len(convert_value)-1]
 #        print('name:'+str(mybatis_param.name))
 #        print('value:'+convert_value)
 #        print('sql_type:'+str(mybatis_param.sql_type))
@@ -351,7 +352,8 @@ def __calc_foreach_value(for_each_text: str, mybatis_param_list, item, item_valu
             #dennis modify 2021.10.29
             calc_value = param_str(calc_value)
             if calc_value!='null' and len(calc_value)>1 and( param.sql_type=='raw' or param.python_type=='raw'):
-                calc_value= calc_value[1:len(calc_value)-1]
+                calc_value= calc_value.replace("'","`")
+                #calc_value= calc_value[1:len(calc_value)-1]
                 print(param.python_type+" :"+ calc_value)
             for_each_text = for_each_text.replace(param.full_name,calc_value, 1)
             
